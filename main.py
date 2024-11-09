@@ -10,7 +10,19 @@ from telegram.ext import (
 from sqlite3 import *
 from datetime import datetime
 
-TOKEN = "7867815566:AAEdX9ISxKNIS5dTI8CR0Ea0gpmbEsWnck4"
+import logging
+
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    filename="bot.log",
+)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
+
+
+TOKEN = "TOKEN"
 NAME, DATE, TIME = range(3)
 
 db = connect('laundry.db')
@@ -33,6 +45,7 @@ async def meet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"Приятно познакомиться, {name}!\n" + 
                                             "Чтобы забронировать вермя, напиши /book_time\n" +
                                             "Если ты хочешь поменять имя или комнату, напиши /start")
+            logger.info(f"New user: %s\nFrom %s", user_tag, update.message.from_user.username)
             return ConversationHandler.END
         else:
             await update.message.reply_text("Я тебя не понял, напиши ещё раз")
@@ -42,8 +55,10 @@ async def meet(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 SET (name, room) = ("{name}", {room})
                 WHERE (tag) = ("{user_tag}")
             """
-        res = curs.executescript(com)
+        curs.executescript(com)
+
         await update.message.reply_text("Изменил твои данные\nЧтобы забронировать время, напиши /book_time")
+        logger.info(f"Changed user data: %s\nFrom %s", user_tag, update.message.from_user.username)
         return ConversationHandler.END
 
 
@@ -53,6 +68,7 @@ async def booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def book_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     date = update.message.text
+    logger.info(f"Request to book date: %s\nFrom %s", date, update.message.from_user.username)
     try:
         date = datetime.strptime(date, "%d.%m.%y").date()
         context.user_data['date'] = date
@@ -82,6 +98,7 @@ async def book_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def book_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     date = context.user_data['date']
+    logger.info(f"Request to book time on %s: %s\nFrom %s", date, update.message.text, update.message.from_user.username)
     try:
         user_tag = update.message.from_user.username
         time = update.message.text.split("-")
@@ -121,6 +138,7 @@ async def show_books(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def showing(update: Update, context: ContextTypes.DEFAULT_TYPE):
     date = update.message.text
+    logger.info(f"Request to view bookings for date: %s\nFrom %s", date, update.message.from_user.username)
     try:
         date = datetime.strptime(date, "%d.%m.%y").date()
         com = f"""
@@ -151,6 +169,7 @@ async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def delete_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     date = update.message.text
+    logger.info(f"Request to delete booking for date: %s\nFrom %s", date, update.message.from_user.username)
     try:
         date = datetime.strptime(date, "%d.%m.%y").date()
         com = f"""
@@ -184,6 +203,7 @@ async def delete_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def delete_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     date = context.user_data['date']
     num = int(update.message.text)
+    logger.info(f"Request to delete booking on %s: %s\nFrom %s", date, update.message.text, update.message.from_user.username)
     try:
         com = f"""
                 SELECT start_time, end_time FROM books
@@ -201,11 +221,13 @@ async def delete_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Я тебя не понял, напиши ещё раз")
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"Help request from %s", update.message.from_user.username)
     await update.message.reply_text("Если ты хочешь забронировать время, напиши /book_time\n" +
                                     "Если ты хочешь посмотреть какое время уже забронировано, напиши /show_books\n" +
                                     "Если ты хочешь удалить бронь, напиши /delete")
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"Stop request from %s", update.message.from_user.username)
     await update.message.reply_text('Стоп машина!')
     return ConversationHandler.END
 
